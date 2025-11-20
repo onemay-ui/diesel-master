@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>柴機達人：缸蓋拆裝競速 (Diesel Master)</title>
+<style>
+  :root{
+    --verb-bg: #ADD8E6;
+    --part-bg: #FFFFE0;
+    --slot-empty: #f5f5f5;
+    --ok: #c8f7c5;
+    --wrong: #f7c5c5;
+    --card-radius: 10px;
+    --big-font: 20px;
+    --ui-padding: 14px;
+  }
+  html,body{height:100%;margin:0;font-family: "Noto Sans TC", Arial, Helvetica, sans-serif;background:linear-gradient(180deg,#f0f6fb 0%, #ffffff 100%);color:#1b1b1b;}
+  .container{max-width:1200px;margin:18px auto;padding:18px;}
+  header{text-align:center;margin-bottom:12px;}
+  h1{font-size:30px;margin:0;}
+  .game-top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;}
+  .timer-card{background:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 6px 18px rgba(30,50,80,0.08);font-size:18px;}
+  .controls{display:flex;gap:10px;align-items:center;}
+  button{font-size:16px;padding:10px 14px;border-radius:10px;border:1px solid rgba(0,0,0,0.08);background:linear-gradient(180deg,#fff,#f5f7fa);cursor:pointer;}
+  button.primary{background:linear-gradient(180deg,#007bff,#0066d6);color:white;border:none;}
+  .game-area{display:grid;grid-template-columns:1fr 420px;gap:18px;}
+  .steps{background:rgba(255,255,255,0.95);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(30,50,80,0.05);overflow:auto;max-height:68vh;}
+  .step{display:flex;gap:10px;align-items:center;padding:12px;border-radius:10px;font-size:var(--big-font);margin-bottom:12px;background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px solid #eee;}
+  .prompt{width:420px;min-width:220px;}
+  .slots{display:flex;gap:8px;align-items:center;}
+  .slot{min-width:160px;min-height:56px;border-radius:10px;background:var(--slot-empty);border:2px dashed rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;padding:6px;text-align:center;position:relative;font-weight:700;}
+  .slot.verb-slot{width:180px;}
+  .slot.part-slot{width:220px;}
+  .placed-card{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:6px;border-radius:8px;cursor:default;box-shadow:0 3px 8px rgba(0,0,0,0.06);position:relative;font-size:18px;}
+  .placed-card img{max-height:56px;max-width:95%;object-fit:contain;border-radius:6px;}
+  .placed-card .remove-btn{position:absolute;top:4px;right:6px;background:transparent;border:none;font-weight:bold;cursor:pointer;color:#333;font-size:14px;}
+  .pools{background:rgba(255,255,255,0.95);padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(30,50,80,0.05);display:flex;flex-direction:column;gap:12px;}
+  .pool-section{display:flex;flex-direction:column;gap:8px;}
+  .pool-title{font-size:18px;font-weight:700;}
+  .pool{display:flex;flex-wrap:wrap;gap:10px;padding:10px;border-radius:10px;border:1px dashed rgba(0,0,0,0.04);background:linear-gradient(180deg,#fff,#fbfdff);min-height:80px;overflow:auto;}
+  .card{padding:8px 10px;min-width:110px;border-radius:var(--card-radius);box-shadow:0 4px 12px rgba(10,20,40,0.05);font-size:18px;font-weight:700;cursor:grab;user-select:none;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .card img{max-height:40px;max-width:120px;object-fit:contain;border-radius:6px;}
+  .card:active{ cursor:grabbing; }
+  .card.verb{background:var(--verb-bg);color:#03314b;border:2px solid rgba(0,0,0,0.06);}
+  .card.part{background:var(--part-bg);color:#2b2b00;border:2px solid rgba(0,0,0,0.06);}
+  .hint{font-size:14px;color:#444;}
+  .slot.correct{background:var(--ok);border-style:solid;border-color: #78d97a;}
+  .slot.incorrect{background:var(--wrong);border-style:solid;border-color:#f06b6b;}
+  @media (max-width:980px){.game-area{grid-template-columns:1fr;} .prompt{width:100%;} .slot.part-slot{width:160px;} .slot.verb-slot{width:120px;}}
+  @keyframes bounceBack {0% { transform: translateY(0); }30% { transform: translateY(-12px); }60% { transform: translateY(0); }100% { transform: translateY(-6px); }}
+  .bounce { animation: bounceBack 600ms ease; }
+  footer{margin-top:12px;text-align:center;color:#666;font-size:14px;}
+</style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="柴機達人：缸蓋拆裝競速">
+    <header>
+      <h1>柴機達人：缸蓋拆裝競速</h1>
+      <p class="lead">遊戲模式：拆卸步驟流程重建 — 把正確的動詞卡和零件卡拖到每個步驟的空槽，並按「提交」檢查答案。支援觸控、多關卡、音效、圖片與成績記錄 (CSV)。</p>
+    </header>
+
+    <div class="game-top">
+      <div class="timer-card" id="timerCard">
+        <div>計時器：<strong id="timer">00:00.000</strong></div>
+        <div style="font-size:13px;color:#666;margin-top:6px;">嘗試次數：<span id="attempts">0</span></div>
+      </div>
+
+      <div class="controls">
+        <select id="levelSelect" title="選關" style="font-size:16px;padding:8px;border-radius:8px;">
+          <option value="1">Level 1 - 基本 (10 步驟)</option>
+          <option value="2">Level 2 - 加挑戰 (同一零件可重複)</option>
+          <option value="3">Level 3 - 時間限制 (120 秒)</option>
+        </select>
+        <button id="resetBtn">重置</button>
+        <button id="exportBtn">匯出成績 (CSV)</button>
+        <button id="submitBtn" class="primary">提交</button>
+      </div>
+    </div>
+
+    <main class="game-area">
+      <section class="steps" aria-label="拆卸步驟區">
+        <!-- Steps will be injected by JS -->
+      </section>
+
+      <aside class="pools" aria-label="卡片區">
+        <div class="pool-section">
+          <div class="pool-title">動詞卡 (拖曳或點選)</div>
+          <div id="verbPool" class="pool" aria-dropeffect="copy"></div>
+          <div class="hint">動詞卡背景為淺藍色。</div>
+        </div>
+
+        <div class="pool-section">
+          <div class="pool-title">零件卡 (拖曳或點選)</div>
+          <div id="partPool" class="pool" aria-dropeffect="copy"></div>
+          <div class="hint">零件卡背景為淺黃色。</div>
+        </div>
+      </aside>
+    </main>
+
+    <footer>
+      提示：支援觸控拖曳；完成後可匯出 CSV 給老師；若要使用自訂圖片或音效，請將檔案放在相同資料夾並更新 HTML。
+    </footer>
+  </div>
+
+<script>
+/* Assets are in the same folder: verb_*.png, part_*.png, drag.wav, correct.wav, wrong.wav */
+/* Core data */
+const VERB_CARDS = [
+  { english: "Set", chinese: "設定", img: "verb_1.png" },
+  { english: "Close", chinese: "關閉", img: "verb_2.png" },
+  { english: "Vent", chinese: "排氣", img: "verb_3.png" },
+  { english: "Remove", chinese: "移除", img: "verb_4.png" },
+  { english: "Dismount", chinese: "拆下", img: "verb_5.png" },
+  { english: "Disconnect", chinese: "斷開", img: "verb_6.png" },
+  { english: "Loosen", chinese: "鬆開", img: "verb_7.png" },
+  { english: "Lift away", chinese: "吊離", img: "verb_8.png" },
+  { english: "Unscrew", chinese: "旋下", img: "verb_9.png" },
+  { english: "Attach", chinese: "連接", img: "verb_10.png" }
+];
+
+const PART_CARDS = [
+  { english: "Block position", chinese: "鎖定位置", img: "part_1.png" },
+  { english: "Starting air inlet", chinese: "起動空氣進口", img: "part_2.png" },
+  { english: "Hydraulic high-pressure pipe", chinese: "液壓高壓油管", img: "part_3.png" },
+  { english: "Cooling water pipe", chinese: "冷卻水管", img: "part_4.png" },
+  { english: "Control air pipe", chinese: "控制氣管", img: "part_5.png" },
+  { english: "Exhaust valve control air pipe", chinese: "排氣閥控制氣管", img: "part_6.png" },
+  { english: "Cylinder cover", chinese: "缸蓋", img: "part_7.png" },
+  { english: "Protective jacket", chinese: "保護套", img: "part_8.png" },
+  { english: "Lifting attachment", chinese: "吊裝附件", img: "part_9.png" },
+  { english: "Nuts", chinese: "螺帽", img: "part_10.png" }
+];
+
+const DISMANTLE_STEPS = [
+  { id: "D1", prompt: "1. 設定起動裝置於鎖定位置。", verb: "Set", object: "Block position", command: "Set block position." },
+  { id: "D2", prompt: "2. 關閉起動空氣進口的主閥。", verb: "Close", object: "Starting air inlet", command: "Close the main valve for the starting air inlet." },
+  { id: "D3", prompt: "3. 洩掉高壓油管的壓力。", verb: "Vent", object: "Hydraulic high-pressure pipe", command: "Vent the pressure from the hydraulic high-pressure pipe." },
+  { id: "D4", prompt: "4. 拆下冷卻水管。", verb: "Remove", object: "Cooling water pipe", command: "Remove the cooling water pipe." },
+  { id: "D5", prompt: "5. 拆下控制氣管。", verb: "Disconnect", object: "Control air pipe", command: "Disconnect the control air pipe." },
+  { id: "D6", prompt: "6. 拆下排氣閥的控制氣管。", verb: "Disconnect", object: "Exhaust valve control air pipe", command: "Disconnect the exhaust valve control air pipe." },
+  { id: "D7", prompt: "7. 拆下所有高壓油管。", verb: "Dismount", object: "Hydraulic high-pressure pipe", command: "Dismount the hydraulic high-pressure pipe." },
+  { id: "D8", prompt: "8. 拆下保護套。", verb: "Remove", object: "Protective jacket", command: "Remove the protective jacket." },
+  { id: "D9", prompt: "9. 鬆開缸蓋螺帽。", verb: "Loosen", object: "Nuts", command: "Loosen the cylinder cover nuts." },
+  { id: "D10", prompt: "10. 吊離缸蓋。", verb: "Lift away", object: "Cylinder cover", command: "Lift away the cylinder cover." }
+];
+
+/* UI references */
+const verbPool = document.getElementById('verbPool');
+const partPool = document.getElementById('partPool');
+const stepsContainer = document.querySelector('.steps');
+const submitBtn = document.getElementById('submitBtn');
+const resetBtn = document.getElementById('resetBtn');
+const exportBtn = document.getElementById('exportBtn');
+const levelSelect = document.getElementById('levelSelect');
+const timerEl = document.getElementById('timer');
+const attemptsEl = document.getElementById('attempts');
+
+let placedMap = {}; // { stepId: { verb: 'Set', object: 'Block position' } }
+let attempts = 0;
+let startTime = null;
+let timerInterval = null;
+let csvRecords = []; // store results per completion
+
+/* Audio */
+const audioDrag = new Audio('drag.wav');
+const audioCorrect = new Audio('correct.wav');
+const audioWrong = new Audio('wrong.wav');
+
+/* Timer helpers */
+function formatElapsed(ms){
+  const total = ms;
+  const minutes = Math.floor(total / 60000);
+  const seconds = Math.floor((total % 60000) / 1000);
+  const millis = total % 1000;
+  return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.${String(millis).padStart(3,'0')}`;
+}
+function startTimer(){
+  if(startTime) return;
+  startTime = performance.now();
+  timerInterval = setInterval(()=>{
+    const now = performance.now();
+    timerEl.textContent = formatElapsed(Math.floor(now - startTime));
+  }, 40);
+}
+function stopTimer(){
+  if(timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  if(startTime){
+    const final = Math.floor(performance.now() - startTime);
+    timerEl.textContent = formatElapsed(final);
+  }
+}
+
+/* Render functions */
+function createCardElement(item, category){
+  const el = document.createElement('div');
+  el.className = `card ${category}`;
+  el.setAttribute('draggable','true');
+  el.dataset.category = category;
+  el.dataset.english = item.english;
+  el.dataset.img = item.img || '';
+  // image + label
+  const img = document.createElement('img');
+  img.src = item.img;
+  img.alt = item.english;
+  const span = document.createElement('span');
+  span.textContent = item.english;
+  el.appendChild(img);
+  el.appendChild(span);
+  el.addEventListener('dragstart', onCardDragStart);
+  el.addEventListener('touchstart', onTouchStart, {passive:false});
+  el.addEventListener('click', onCardClick);
+  return el;
+}
+
+function populatePools(level){
+  verbPool.innerHTML = '';
+  partPool.innerHTML = '';
+  // Level affects duplication / availability (Level 2 allows duplicates)
+  const verbs = VERB_CARDS.slice();
+  const parts = PART_CARDS.slice();
+  verbs.forEach((v)=> verbPool.appendChild(createCardElement(v,'verb')));
+  parts.forEach((p)=> partPool.appendChild(createCardElement(p,'part')));
+}
+
+function renderSteps(){
+  stepsContainer.innerHTML = '';
+  DISMANTLE_STEPS.forEach(step=>{
+    const stepEl = document.createElement('div');
+    stepEl.className = 'step';
+    stepEl.id = `step-${step.id}`;
+    const prompt = document.createElement('div');
+    prompt.className = 'prompt';
+    prompt.textContent = step.prompt;
+
+    const slots = document.createElement('div');
+    slots.className = 'slots';
+
+    const verbSlot = document.createElement('div');
+    verbSlot.className = 'slot verb-slot';
+    verbSlot.dataset.stepId = step.id;
+    verbSlot.dataset.slotType = 'verb';
+    verbSlot.textContent = '拖入動詞';
+    verbSlot.addEventListener('dragover', onSlotDragOver);
+    verbSlot.addEventListener('drop', onSlotDrop);
+    verbSlot.addEventListener('touchend', onTouchDrop, {passive:false});
+
+    const partSlot = document.createElement('div');
+    partSlot.className = 'slot part-slot';
+    partSlot.dataset.stepId = step.id;
+    partSlot.dataset.slotType = 'part';
+    partSlot.textContent = '拖入零件';
+    partSlot.addEventListener('dragover', onSlotDragOver);
+    partSlot.addEventListener('drop', onSlotDrop);
+    partSlot.addEventListener('touchend', onTouchDrop, {passive:false});
+
+    slots.appendChild(verbSlot);
+    slots.appendChild(partSlot);
+    stepEl.appendChild(prompt);
+    stepEl.appendChild(slots);
+    stepsContainer.appendChild(stepEl);
+  });
+}
+
+/* Drag & Drop */
+function onCardDragStart(e){
+  startTimer();
+  audioDrag.currentTime = 0; audioDrag.play().catch(()=>{});
+  const payload = { english: e.target.dataset.english, category: e.target.dataset.category, img: e.target.dataset.img };
+  e.dataTransfer.setData('application/json', JSON.stringify(payload));
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
+function onSlotDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+
+function createPlacedCard(payload){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'placed-card';
+  wrapper.dataset.category = payload.category;
+  wrapper.dataset.english = payload.english;
+  // use image if available
+  if(payload.img){
+    const im = document.createElement('img'); im.src = payload.img; im.alt = payload.english;
+    wrapper.appendChild(im);
+  } else {
+    const span = document.createElement('span'); span.textContent = payload.english; wrapper.appendChild(span);
+  }
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '×';
+  removeBtn.title = '移回卡片區';
+  removeBtn.addEventListener('click', (ev)=>{
+    const slot = wrapper.parentElement;
+    if(slot){
+      slot.innerHTML = slot.dataset.slotType === 'verb' ? '拖入動詞' : '拖入零件';
+      slot.classList.remove('correct','incorrect');
+      delete placedMap[slot.dataset.stepId];
+    }
+    ev.stopPropagation();
+  });
+  wrapper.appendChild(removeBtn);
+  return wrapper;
+}
+
+function onSlotDrop(e){
+  e.preventDefault();
+  const data = e.dataTransfer.getData('application/json');
+  if(!data) return;
+  let payload = null;
+  try { payload = JSON.parse(data); } catch(err){ return; }
+  const slot = e.currentTarget;
+  const slotType = slot.dataset.slotType;
+  if(payload.category !== slotType){
+    slot.classList.add('bounce');
+    setTimeout(()=>slot.classList.remove('bounce'),600);
+    audioWrong.currentTime = 0; audioWrong.play().catch(()=>{});
+    return;
+  }
+  slot.classList.remove('correct','incorrect');
+  slot.innerHTML = '';
+  const placed = createPlacedCard(payload);
+  slot.appendChild(placed);
+  const stepId = slot.dataset.stepId;
+  if(!placedMap[stepId]) placedMap[stepId] = {};
+  if(slotType === 'verb') placedMap[stepId].verb = payload.english;
+  else placedMap[stepId].object = payload.english;
+}
+
+/* Touch support (simple): when user taps a card, then taps a slot to place it */
+let touchSelection = null;
+function onTouchStart(e){
+  e.preventDefault();
+  const card = e.currentTarget;
+  touchSelection = { english: card.dataset.english, category: card.dataset.category, img: card.dataset.img };
+  // highlight pools slightly
+  card.classList.add('bounce');
+  setTimeout(()=>card.classList.remove('bounce'),300);
+}
+function onTouchDrop(e){
+  e.preventDefault();
+  if(!touchSelection) return;
+  const slot = e.currentTarget;
+  const slotType = slot.dataset.slotType;
+  if(touchSelection.category !== slotType){
+    slot.classList.add('bounce'); setTimeout(()=>slot.classList.remove('bounce'),600);
+    audioWrong.currentTime = 0; audioWrong.play().catch(()=>{});
+    touchSelection = null;
+    return;
+  }
+  slot.innerHTML = '';
+  const placed = createPlacedCard(touchSelection);
+  slot.appendChild(placed);
+  const stepId = slot.dataset.stepId;
+  if(!placedMap[stepId]) placedMap[stepId] = {};
+  if(slotType === 'verb') placedMap[stepId].verb = touchSelection.english;
+  else placedMap[stepId].object = touchSelection.english;
+  audioDrag.currentTime = 0; audioDrag.play().catch(()=>{});
+  touchSelection = null;
+}
+
+/* Click selection fallback */
+let clickSelection = null;
+function onCardClick(e){
+  clickSelection = { english: e.currentTarget.dataset.english, category: e.currentTarget.dataset.category, img: e.currentTarget.dataset.img };
+  e.currentTarget.classList.add('bounce');
+  setTimeout(()=>e.currentTarget.classList.remove('bounce'),300);
+  // inform user via title
+  document.title = `選取：${clickSelection.english} — 請點選步驟的空槽放置`;
+}
+document.addEventListener('click', (e)=>{
+  const slot = e.target.closest('.slot');
+  if(!slot || !clickSelection) return;
+  if(clickSelection.category !== slot.dataset.slotType){
+    slot.classList.add('bounce'); setTimeout(()=>slot.classList.remove('bounce'),600);
+    audioWrong.currentTime = 0; audioWrong.play().catch(()=>{});
+    clickSelection = null; document.title = '柴機達人：缸蓋拆裝競速';
+    return;
+  }
+  slot.innerHTML = '';
+  const placed = createPlacedCard(clickSelection);
+  slot.appendChild(placed);
+  const stepId = slot.dataset.stepId;
+  if(!placedMap[stepId]) placedMap[stepId] = {};
+  if(slot.dataset.slotType === 'verb') placedMap[stepId].verb = clickSelection.english;
+  else placedMap[stepId].object = clickSelection.english;
+  audioDrag.currentTime = 0; audioDrag.play().catch(()=>{});
+  clickSelection = null; document.title = '柴機達人：缸蓋拆裝競速';
+});
+
+/* Speech */
+function speakText(text){
+  if(!('speechSynthesis' in window)) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const enVoice = voices.find(v=>/en[-_ ]?/i.test(v.lang)) || voices.find(v=>v.lang && v.lang.startsWith('en')) || voices[0];
+  if(enVoice) utter.voice = enVoice;
+  utter.lang = 'en-US';
+  utter.rate = 0.95;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
+}
+
+/* Feedback */
+function givePositiveFeedback(slotEl){
+  slotEl.classList.remove('incorrect');
+  slotEl.classList.add('correct');
+}
+function giveNegativeFeedback(slotEl){
+  slotEl.classList.remove('correct');
+  slotEl.classList.add('incorrect');
+  slotEl.classList.add('bounce');
+  setTimeout(()=>slotEl.classList.remove('bounce'),700);
+}
+function returnPlacedCardToPool(slotEl){
+  const slotType = slotEl.dataset.slotType;
+  slotEl.innerHTML = slotType === 'verb' ? '拖入動詞' : '拖入零件';
+  slotEl.classList.remove('incorrect');
+  delete placedMap[slotEl.dataset.stepId];
+}
+
+/* Submission */
+function checkAllSteps(){
+  attempts++;
+  attemptsEl.textContent = attempts;
+  let allCorrect = true;
+  const timeLimitSec = (levelSelect.value === '3') ? 120 : null;
+  const nowElapsed = startTime ? Math.floor(performance.now() - startTime) : 0;
+  if(timeLimitSec && nowElapsed > timeLimitSec*1000){
+    alert('時間到！請重試（Level 3 有時間限制）');
+    return;
+  }
+  DISMANTLE_STEPS.forEach(step=>{
+    const stepId = step.id;
+    const slotVerb = document.querySelector(`#step-${stepId} .verb-slot`);
+    const slotPart = document.querySelector(`#step-${stepId} .part-slot`);
+    const placed = placedMap[stepId] || {};
+    const verbMatch = placed.verb && placed.verb.trim() === step.verb;
+    const partMatch = placed.object && placed.object.trim() === step.object;
+
+    if(verbMatch && partMatch){
+      givePositiveFeedback(slotVerb);
+      givePositiveFeedback(slotPart);
+      audioCorrect.currentTime = 0; audioCorrect.play().catch(()=>{});
+      speakText(step.command);
+      // disable remove
+      const rv = slotVerb.querySelector('.remove-btn'); if(rv) rv.style.display = 'none';
+      const rp = slotPart.querySelector('.remove-btn'); if(rp) rp.style.display = 'none';
+    } else {
+      allCorrect = false;
+      if(slotVerb.querySelector('.placed-card')) giveNegativeFeedback(slotVerb);
+      if(slotPart.querySelector('.placed-card')) giveNegativeFeedback(slotPart);
+      audioWrong.currentTime = 0; audioWrong.play().catch(()=>{});
+      setTimeout(()=>{
+        if(slotVerb.querySelector('.placed-card')) returnPlacedCardToPool(slotVerb);
+        if(slotPart.querySelector('.placed-card')) returnPlacedCardToPool(slotPart);
+      }, 900);
+    }
+  });
+
+  if(allCorrect){
+    stopTimer();
+    const finalTime = timerEl.textContent;
+    setTimeout(()=>{
+      alert(`恭喜！你完成所有步驟！\n總時間：${finalTime}\n嘗試次數：${attempts}`);
+      // record to CSV
+      csvRecords.push({ time: finalTime, attempts, level: levelSelect.value, timestamp: new Date().toISOString() });
+    }, 200);
+  }
+}
+
+/* Export CSV */
+function exportCSV(){
+  if(csvRecords.length === 0){
+    alert('目前沒有成績記錄，請完成至少一次遊戲。');
+    return;
+  }
+  let csv = 'timestamp,level,time,attempts\n';
+  csvRecords.forEach(r=>{
+    csv += `${r.timestamp},${r.level},"${r.time}",${r.attempts}\n`;
+  });
+  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'diesel_master_scores.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 2000);
+}
+
+/* Reset */
+function resetGame(){
+  placedMap = {};
+  attempts = 0;
+  attemptsEl.textContent = attempts;
+  startTime = null;
+  if(timerInterval){ clearInterval(timerInterval); timerInterval = null; }
+  timerEl.textContent = '00:00.000';
+  renderSteps();
+  populatePools(levelSelect.value);
+  // preload audio
+  audioDrag.load(); audioCorrect.load(); audioWrong.load();
+}
+
+/* Init */
+document.addEventListener('DOMContentLoaded', ()=>{
+  renderSteps();
+  populatePools(levelSelect.value);
+  startTimer(); // start as requested
+  submitBtn.addEventListener('click', checkAllSteps);
+  resetBtn.addEventListener('click', ()=>{ if(window.speechSynthesis) window.speechSynthesis.cancel(); resetGame(); });
+  exportBtn.addEventListener('click', exportCSV);
+  levelSelect.addEventListener('change', resetGame);
+  if(window.speechSynthesis) window.speechSynthesis.getVoices();
+});
+</script>
+</body>
+</html>

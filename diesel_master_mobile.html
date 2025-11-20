@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>柴機達人（手機版） - 點擊優先</title>
+<style>
+  :root{--verb:#ADD8E6;--part:#FFFFE0;--ok:#c8f7c5;--wrong:#f7c5c5;}
+  body{font-family: "Noto Sans TC", Arial, sans-serif;margin:0;background:#f7fbff;color:#122;line-height:1.2;}
+  .app{max-width:720px;margin:0 auto;padding:12px;}
+  header{display:flex;gap:8px;align-items:center;justify-content:space-between;}
+  h1{font-size:20px;margin:0;}
+  .meta{font-size:14px;color:#555;}
+  .topbar{display:flex;gap:8px;align-items:center;margin:10px 0;}
+  select,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc;}
+  .timer{background:#fff;padding:8px;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);}
+  main{display:flex;flex-direction:column;gap:12px;}
+  .steps{background:#fff;padding:10px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.06);max-height:48vh;overflow:auto;}
+  .step{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:8px;border:1px solid #eee;margin-bottom:8px;font-size:18px;}
+  .slots{display:flex;gap:8px;}
+  .slot{flex:1;min-height:56px;border-radius:8px;background:#fafafa;border:2px dashed #e5e5e5;display:flex;align-items:center;justify-content:center;font-weight:700;padding:8px;text-align:center;}
+  .slot.correct{background:var(--ok);border-style:solid;border-color:#78d97a;}
+  .slot.incorrect{background:var(--wrong);border-style:solid;border-color:#f06b6b;}
+  .card-row{display:flex;flex-direction:column;gap:8px;}
+  .pool-toggle{display:flex;gap:8px;align-items:center;justify-content:space-between;}
+  .pool{background:#fff;padding:8px;border-radius:10px;box-shadow:0 3px 10px rgba(0,0,0,0.04);display:flex;flex-direction:column;gap:8px;max-height:30vh;overflow:auto;}
+  .card{display:flex;gap:8px;align-items:center;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:18px;background:transparent;cursor:pointer;}
+  .card img{height:44px;border-radius:6px;}
+  .card.verb{background:var(--verb);}
+  .card.part{background:var(--part);}
+  .footer{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px;}
+  .big{font-size:20px;padding:12px 16px;}
+  @media (max-width:420px){
+    h1{font-size:18px;}
+    .card{font-size:16px;padding:12px;}
+    .step{font-size:16px;}
+  }
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="柴機達人手機版">
+  <header>
+    <h1>柴機達人：手機點擊版</h1>
+    <div class="meta">點擊卡片 → 點選槽位放置</div>
+  </header>
+
+  <div class="topbar">
+    <div class="timer" id="timer">計時：00:00.000</div>
+    <select id="level">
+      <option value="1">Level 1</option>
+      <option value="2">Level 2</option>
+      <option value="3">Level 3（120秒）</option>
+    </select>
+    <button id="reset" class="big">重置</button>
+  </div>
+
+  <main>
+    <section class="steps" id="steps" aria-label="拆卸步驟">
+      <!-- Steps injected -->
+    </section>
+
+    <section class="pool-toggle">
+      <strong>動詞卡（淺藍）</strong>
+      <button id="toggleVerbs">收合/展開</button>
+    </section>
+    <section class="pool" id="verbPool" aria-label="動詞卡區">
+      <!-- verbs -->
+    </section>
+
+    <section class="pool-toggle">
+      <strong>零件卡（淺黃）</strong>
+      <button id="toggleParts">收合/展開</button>
+    </section>
+    <section class="pool" id="partPool" aria-label="零件卡區">
+      <!-- parts -->
+    </section>
+
+    <div class="footer">
+      <button id="submit" class="big">提交檢查</button>
+      <button id="export" class="big">匯出CSV</button>
+    </div>
+  </main>
+</div>
+
+<script>
+/* reuse core data, assets assumed in same folder */
+const VERB_CARDS = [
+  { english: "Set", img: "verb_1.png"},{ english: "Close", img: "verb_2.png"},
+  { english: "Vent", img: "verb_3.png"},{ english: "Remove", img: "verb_4.png"},
+  { english: "Dismount", img: "verb_5.png"},{ english: "Disconnect", img: "verb_6.png"},
+  { english: "Loosen", img: "verb_7.png"},{ english: "Lift away", img: "verb_8.png"},
+  { english: "Unscrew", img: "verb_9.png"},{ english: "Attach", img: "verb_10.png"}
+];
+const PART_CARDS = [
+  { english: "Block position", img:"part_1.png"},{ english: "Starting air inlet", img:"part_2.png"},
+  { english: "Hydraulic high-pressure pipe", img:"part_3.png"},{ english: "Cooling water pipe", img:"part_4.png"},
+  { english: "Control air pipe", img:"part_5.png"},{ english: "Exhaust valve control air pipe", img:"part_6.png"},
+  { english: "Cylinder cover", img:"part_7.png"},{ english: "Protective jacket", img:"part_8.png"},
+  { english: "Lifting attachment", img:"part_9.png"},{ english: "Nuts", img:"part_10.png"}
+];
+const DISMANTLE_STEPS = [
+  { id:"D1", prompt:"1. 設定起動裝置於鎖定位置。", verb:"Set", object:"Block position", command:"Set block position."},
+  { id:"D2", prompt:"2. 關閉起動空氣進口的主閥。", verb:"Close", object:"Starting air inlet", command:"Close the main valve for the starting air inlet."},
+  { id:"D3", prompt:"3. 洩掉高壓油管的壓力。", verb:"Vent", object:"Hydraulic high-pressure pipe", command:"Vent the pressure from the hydraulic high-pressure pipe."},
+  { id:"D4", prompt:"4. 拆下冷卻水管。", verb:"Remove", object:"Cooling water pipe", command:"Remove the cooling water pipe."},
+  { id:"D5", prompt:"5. 拆下控制氣管。", verb:"Disconnect", object:"Control air pipe", command:"Disconnect the control air pipe."},
+  { id:"D6", prompt:"6. 拆下排氣閥的控制氣管。", verb:"Disconnect", object:"Exhaust valve control air pipe", command:"Disconnect the exhaust valve control air pipe."},
+  { id:"D7", prompt:"7. 拆下所有高壓油管。", verb:"Dismount", object:"Hydraulic high-pressure pipe", command:"Dismount the hydraulic high-pressure pipe."},
+  { id:"D8", prompt:"8. 拆下保護套。", verb:"Remove", object:"Protective jacket", command:"Remove the protective jacket."},
+  { id:"D9", prompt:"9. 鬆開缸蓋螺帽。", verb:"Loosen", object:"Nuts", command:"Loosen the cylinder cover nuts."},
+  { id:"D10", prompt:"10. 吊離缸蓋。", verb:"Lift away", object:"Cylinder cover", command:"Lift away the cylinder cover."}
+];
+
+const verbPool = document.getElementById('verbPool');
+const partPool = document.getElementById('partPool');
+const stepsEl = document.getElementById('steps');
+const levelSel = document.getElementById('level');
+const timerEl = document.getElementById('timer');
+const submitBtn = document.getElementById('submit');
+const resetBtn = document.getElementById('reset');
+const exportBtn = document.getElementById('export');
+
+let selectedCard = null; // {english, type}
+let placed = {}; // {stepId: {verb, object}}
+let attempts = 0;
+let startTime = null;
+let timerInterval = null;
+let csvRecords = [];
+
+function startTimer(){ if(startTime) return; startTime = performance.now(); timerInterval = setInterval(()=>{ timerEl.textContent = '計時：' + formatElapsed(Math.floor(performance.now()-startTime)); }, 60); }
+function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval=null; }
+function formatElapsed(ms){ const m=Math.floor(ms/60000); const s=Math.floor((ms%60000)/1000); const ms2=ms%1000; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms2).padStart(3,'0')}`; }
+
+function renderPools(){
+  verbPool.innerHTML=''; partPool.innerHTML='';
+  VERB_CARDS.forEach(v=>{
+    const btn = document.createElement('button'); btn.className='card verb'; btn.innerHTML = `<img src="${v.img}" alt="${v.english}"><span>${v.english}</span>`;
+    btn.addEventListener('click', ()=>{ selectedCard = {english:v.english, type:'verb'}; btn.classList.add('selected'); setTimeout(()=>btn.classList.remove('selected'),220);});
+    verbPool.appendChild(btn);
+  });
+  PART_CARDS.forEach(p=>{
+    const btn = document.createElement('button'); btn.className='card part'; btn.innerHTML = `<img src="${p.img}" alt="${p.english}"><span>${p.english}</span>`;
+    btn.addEventListener('click', ()=>{ selectedCard = {english:p.english, type:'part'}; btn.classList.add('selected'); setTimeout(()=>btn.classList.remove('selected'),220);});
+    partPool.appendChild(btn);
+  });
+}
+
+function renderSteps(){
+  stepsEl.innerHTML='';
+  DISMANTLE_STEPS.forEach(step=>{
+    const box = document.createElement('div'); box.className='step';
+    const p = document.createElement('div'); p.textContent = step.prompt;
+    const slots = document.createElement('div'); slots.className='slots';
+    const vslot = document.createElement('div'); vslot.className='slot'; vslot.dataset.step=step.id; vslot.dataset.type='verb'; vslot.textContent='點我放動詞';
+    const pslot = document.createElement('div'); pslot.className='slot'; pslot.dataset.step=step.id; pslot.dataset.type='part'; pslot.textContent='點我放零件';
+    vslot.addEventListener('click', onSlotClick); pslot.addEventListener('click', onSlotClick);
+    slots.appendChild(vslot); slots.appendChild(pslot);
+    box.appendChild(p); box.appendChild(slots);
+    stepsEl.appendChild(box);
+  });
+}
+
+function onSlotClick(e){
+  const slot = e.currentTarget;
+  if(!selectedCard){
+    // no selection: allow tap to remove placed card
+    if(slot.dataset.placed){
+      delete slot.dataset.placed;
+      slot.textContent = (slot.dataset.type==='verb') ? '點我放動詞' : '點我放零件';
+      delete placed[slot.dataset.step + '-' + slot.dataset.type];
+    }
+    return;
+  }
+  // place selected card
+  if(selectedCard.type !== slot.dataset.type){
+    // mismatch - shake
+    slot.classList.add('incorrect');
+    setTimeout(()=>slot.classList.remove('incorrect'),600);
+    selectedCard = null;
+    return;
+  }
+  // place
+  slot.textContent = selectedCard.english;
+  slot.dataset.placed = '1';
+  placed[slot.dataset.step] = placed[slot.dataset.step] || {};
+  if(slot.dataset.type==='verb') placed[slot.dataset.step].verb = selectedCard.english;
+  else placed[slot.dataset.step].object = selectedCard.english;
+  selectedCard = null;
+  // start timer on first placement
+  startTimer();
+}
+
+document.getElementById('toggleVerbs').addEventListener('click', ()=>{ verbPool.style.display = verbPool.style.display==='none' ? 'flex' : 'none'; });
+document.getElementById('toggleParts').addEventListener('click', ()=>{ partPool.style.display = partPool.style.display==='none' ? 'flex' : 'none'; });
+
+submitBtn.addEventListener('click', checkAll);
+resetBtn.addEventListener('click', ()=>{ placed={}; attempts=0; startTime=null; stopTimer(); timerEl.textContent='計時：00:00.000'; renderSteps(); renderPools(); });
+exportBtn.addEventListener('click', exportCSV);
+levelSel.addEventListener('change', ()=>{ /* could change behavior */ });
+
+function checkAll(){
+  attempts++;
+  let ok=true;
+  DISMANTLE_STEPS.forEach(step=>{
+    const vslot = document.querySelector(`[data-step="${step.id}"][data-type="verb"]`);
+    const pslot = document.querySelector(`[data-step="${step.id}"][data-type="part"]`);
+    const v = (placed[step.id] && placed[step.id].verb) || null;
+    const o = (placed[step.id] && placed[step.id].object) || null;
+    if(v===step.verb && o===step.object){
+      vslot.classList.add('correct'); pslot.classList.add('correct');
+      // speak
+      speak(step.command);
+    } else {
+      ok=false;
+      if(vslot.dataset.placed){ vslot.classList.add('incorrect'); setTimeout(()=>{ vslot.classList.remove('incorrect'); vslot.textContent='點我放動詞'; delete vslot.dataset.placed; delete placed[step.id]; } ,800); }
+      if(pslot.dataset.placed){ pslot.classList.add('incorrect'); setTimeout(()=>{ pslot.classList.remove('incorrect'); pslot.textContent='點我放零件'; delete pslot.dataset.placed; delete placed[step.id]; } ,800); }
+    }
+  });
+  if(ok){
+    stopTimer();
+    const final = formatElapsed(Math.floor(performance.now()-startTime));
+    csvRecords.push({time:final,attempts:attempts,level:levelSel.value,when:new Date().toISOString()});
+    alert('全部正確！時間：' + final + '\n嘗試次數：' + attempts);
+  }
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang='en-US'; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+}
+
+function exportCSV(){
+  if(csvRecords.length===0){ alert('尚無紀錄'); return; }
+  let csv='timestamp,level,time,attempts\n';
+  csvRecords.forEach(r=> csv += `${r.when},${r.level},"${r.time}",${r.attempts}\n`);
+  const blob = new Blob([csv], {type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='diesel_mobile_scores.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+/* init */
+renderPools(); renderSteps();
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>柴機達人 - 練習模式</title>
+<style>
+  body{font-family:"Noto Sans TC",Arial,sans-serif;margin:0;background:#f4fbf8;color:#112;}
+  .wrap{max-width:700px;margin:10px auto;padding:12px;}
+  h1{font-size:20px;margin:0 0 8px 0;}
+  .card{display:flex;gap:8px;align-items:center;padding:10px;border-radius:10px;background:#fff;border:1px solid #eee;margin-bottom:8px;}
+  .controls{display:flex;gap:8px;margin:10px 0;}
+  button{padding:10px;border-radius:8px;border:1px solid #ccc;font-size:16px;}
+  .prompt{background:#fff;padding:12px;border-radius:10px;border:1px solid #eee;margin-bottom:8px;font-size:18px;}
+  .choices{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
+  .feedback{font-weight:700;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>練習模式（一步一練）</h1>
+    <div class="prompt" id="prompt">提示會顯示在這裡</div>
+    <div class="choices" id="choices"></div>
+    <div class="controls">
+      <button id="next" style="flex:1;">下一題</button>
+      <button id="hint">顯示提示</button>
+      <button id="reset">重置練習</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+<script>
+const STEPS = [
+  {prompt:"設定起動裝置於鎖定位置。", verb:"Set", part:"Block position", hint:"想想如何把裝置固定"},
+  {prompt:"關閉起動空氣進口的主閥。", verb:"Close", part:"Starting air inlet", hint:"關閉主要閥門"},
+  {prompt:"洩掉高壓油管的壓力。", verb:"Vent", part:"Hydraulic high-pressure pipe", hint:"放掉壓力"},
+  {prompt:"拆下冷卻水管。", verb:"Remove", part:"Cooling water pipe", hint:"移走水管"}
+];
+let index=0;
+const promptEl=document.getElementById('prompt');
+const choicesEl=document.getElementById('choices');
+const feedbackEl=document.getElementById('feedback');
+
+function render(){
+  const s=STEPS[index];
+  promptEl.textContent = (index+1) + '. ' + s.prompt;
+  choicesEl.innerHTML='';
+  // show multiple choice for verb and part
+  const verbs = ["Set","Close","Vent","Remove","Dismount","Disconnect"];
+  const parts = ["Block position","Starting air inlet","Hydraulic high-pressure pipe","Cooling water pipe"];
+  const vHeader = document.createElement('div'); vHeader.textContent='選擇動詞：'; choicesEl.appendChild(vHeader);
+  verbs.forEach(v=>{
+    const b = document.createElement('button'); b.className='card'; b.textContent=v; b.addEventListener('click', ()=>{ check(v,s.verb,'verb'); });
+    choicesEl.appendChild(b);
+  });
+  const pHeader = document.createElement('div'); pHeader.textContent='選擇零件：'; choicesEl.appendChild(pHeader);
+  parts.forEach(p=>{
+    const b = document.createElement('button'); b.className='card'; b.textContent=p; b.addEventListener('click', ()=>{ check(p,s.part,'part'); });
+    choicesEl.appendChild(b);
+  });
+  feedbackEl.textContent = '';
+}
+function check(choice,answer,type){
+  if(choice===answer){
+    feedbackEl.textContent = type + ' 正確！';
+    feedbackEl.style.color='green';
+    // speak full command
+    speak( (type==='verb') ? (choice + ' ...') : ('... ' + choice) );
+  } else {
+    feedbackEl.textContent = type + ' 錯誤，請再試。';
+    feedbackEl.style.color='red';
+  }
+}
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang='en-US'; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+}
+document.getElementById('next').addEventListener('click', ()=>{
+  index = (index + 1) % STEPS.length; render();
+});
+document.getElementById('hint').addEventListener('click', ()=>{ feedbackEl.textContent = '提示：' + STEPS[index].hint; feedbackEl.style.color='#333'; });
+document.getElementById('reset').addEventListener('click', ()=>{ index=0; render(); feedbackEl.textContent=''; });
+render();
+</script>
+</body>
+</html>
